@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LU3</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --card: #16161f;
+    --border: #2a2a3a;
+    --accent: #e8c547;
+    --accent2: #f07060;
+    --accent3: #60c8f0;
+    --text: #e8e8f0;
+    --muted: #7070a0;
+    --white: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    cursor: none;
+  }
+
+  /* Custom cursor */
+  .cursor {
+    position: fixed;
+    width: 10px; height: 10px;
+    background: var(--accent);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: transform 0.1s, width 0.2s, height 0.2s, background 0.2s;
+  }
+  .cursor-ring {
+    position: fixed;
+    width: 36px; height: 36px;
+    border: 1.5px solid rgba(232,197,71,0.5);
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transform: translate(-50%, -50%);
+    transition: transform 0.18s ease, width 0.2s, height 0.2s;
+  }
+
+  /* Slide container */
+  #presentation {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(40px);
+    transition: opacity 0.6s cubic-bezier(.4,0,.2,1), transform 0.6s cubic-bezier(.4,0,.2,1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
+  }
+  .slide.exit {
+    opacity: 0;
+    transform: translateY(-40px);
+    pointer-events: none;
+  }
+
+  /* Background noise texture overlay */
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.3;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Grid background */
+  .grid-bg {
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(232,197,71,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(232,197,71,0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow blobs */
+  .blob {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.18;
+  }
+  .blob-1 { width: 600px; height: 600px; background: #e8c547; top: -200px; left: -100px; }
+  .blob-2 { width: 500px; height: 500px; background: #f07060; bottom: -150px; right: -100px; }
+  .blob-3 { width: 400px; height: 400px; background: #60c8f0; top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0.1; }
+
+  /* Slide inner */
+  .slide-inner {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  /* ====== SLIDE 0: TITLE ====== */
+  .slide-title-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 24px;
+  }
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid rgba(232,197,71,0.3);
+    padding: 6px 14px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+  .main-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(52px, 8vw, 110px);
+    font-weight: 900;
+    line-height: 0.95;
+    color: var(--white);
+    letter-spacing: -0.02em;
+  }
+  .main-title .highlight {
+    color: var(--accent);
+    display: block;
+    position: relative;
+  }
+  .main-title .highlight::after {
+    content: '';
+    position: absolute;
+    bottom: 4px; left: 0;
+    width: 100%; height: 4px;
+    background: var(--accent2);
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: underline-in 0.8s 1.2s cubic-bezier(.4,0,.2,1) forwards;
+  }
+  @keyframes underline-in { to { transform: scaleX(1); } }
+  .title-desc {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.6;
+    font-weight: 300;
+  }
+  .title-stats {
+    display: flex;
+    gap: 48px;
+    margin-top: 16px;
+  }
+  .stat-item { display: flex; flex-direction: column; gap: 4px; }
+  .stat-num {
+    font-family: 'Playfair Display', serif;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-label {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .title-nav-hint {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 8px;
+  }
+  .key-hint {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--card);
+    animation: pulse-key 2s infinite;
+  }
+  @keyframes pulse-key {
+    0%,100% { border-color: var(--border); }
+    50% { border-color: var(--accent); }
+  }
+
+  /* ====== SECTION SLIDES ====== */
+  .section-header {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+  .section-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.1;
+  }
+  .section-divider {
+    width: 60px; height: 3px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    border-radius: 2px;
+  }
+
+  /* Card grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.3s, transform 0.3s;
+    cursor: default;
+  }
+  .card:hover {
+    border-color: var(--accent);
+    transform: translateY(-4px);
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .card:hover::before { opacity: 1; }
+  .card-icon {
+    font-size: 28px;
+    margin-bottom: 16px;
+    display: block;
+  }
+  .card-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .card-body {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.65;
+    font-weight: 300;
+  }
+  .card-tag {
+    display: inline-block;
+    margin-top: 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: rgba(232,197,71,0.1);
+    color: var(--accent);
+    border: 1px solid rgba(232,197,71,0.2);
+  }
+
+  /* Two-column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  .col-content { display: flex; flex-direction: column; gap: 16px; }
+
+  /* List items */
+  .fancy-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .fancy-list li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .fancy-list li::before {
+    content: '→';
+    color: var(--accent);
+    font-family: 'DM Mono', monospace;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .fancy-list li strong { color: var(--text); }
+
+  /* Code-style block */
+  .code-block {
+    background: #0d0d14;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: #a0a0c0;
+    line-height: 1.8;
+  }
+  .code-block .kw { color: var(--accent2); }
+  .code-block .str { color: var(--accent3); }
+  .code-block .fn { color: var(--accent); }
+  .code-block .cm { color: #505070; }
+
+  /* Pill tags row */
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .pill {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    background: var(--card);
+    transition: all 0.2s;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--accent); background: rgba(232,197,71,0.06); }
+  .pill.active { border-color: var(--accent); color: var(--accent); background: rgba(232,197,71,0.1); }
+
+  /* Timeline */
+  .timeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 14px; top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(to bottom, var(--accent), transparent);
+  }
+  .timeline-item {
+    display: flex; gap: 24px;
+    padding: 0 0 24px 0;
+    position: relative;
+  }
+  .timeline-dot {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    flex-shrink: 0;
+    z-index: 1;
+  }
+  .timeline-content { padding-top: 3px; }
+  .timeline-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .timeline-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+  /* Progress bar */
+  .progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.5s cubic-bezier(.4,0,.2,1);
+    z-index: 100;
+  }
+
+  /* Nav controls */
+  .nav {
+    position: fixed;
+    bottom: 32px;
+    right: 40px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 100;
+  }
+  .nav-btn {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--text);
+    font-size: 18px;
+    cursor: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .nav-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,197,71,0.08);
+  }
+  .nav-btn:disabled { opacity: 0.3; cursor: default; }
+  .nav-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Slide dots */
+  .dots {
+    position: fixed;
+    left: 32px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 100;
+  }
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: none;
+    transition: all 0.3s;
+  }
+  .dot.active {
+    background: var(--accent);
+    transform: scale(1.5);
+  }
+  .dot:hover { background: var(--muted); }
+
+  /* Section label top-left */
+  .slide-label {
+    position: fixed;
+    top: 32px; left: 40px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    z-index: 100;
+    transition: opacity 0.3s;
+  }
+
+  /* Special: big number accent */
+  .big-accent {
+    font-family: 'Playfair Display', serif;
+    font-size: 120px;
+    font-weight: 900;
+    color: rgba(232,197,71,0.06);
+    position: absolute;
+    right: 0; top: -20px;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* Tool cards horizontal */
+  .tools-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+  }
+  .tool-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.25s;
+  }
+  .tool-card:hover {
+    border-color: var(--accent3);
+    transform: translateY(-3px);
+  }
+  .tool-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--white);
+  }
+  .tool-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
+  .tool-badge {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 3px;
+    background: rgba(96,200,240,0.1);
+    color: var(--accent3);
+    border: 1px solid rgba(96,200,240,0.2);
+    align-self: flex-start;
+  }
+
+  /* Compliance cards */
+  .compliance-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  .compliance-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .compliance-card:hover { border-color: var(--accent2); transform: translateY(-3px); }
+  .compliance-card::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 80px; height: 80px;
+    background: radial-gradient(circle at top right, rgba(240,112,96,0.08), transparent);
+  }
+  .compliance-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+  .compliance-desc { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 12px; }
+
+  /* Outro slide */
+  .outro-content {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+  }
+  .outro-icon {
+    width: 80px; height: 80px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 32px;
+    background: rgba(232,197,71,0.06);
+    animation: spin-border 8s linear infinite;
+  }
+  @keyframes spin-border {
+    to { box-shadow: 0 0 0 2px var(--accent), 0 0 40px rgba(232,197,71,0.2); }
+  }
+  .outro-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 700;
+    color: var(--white);
+    line-height: 1.1;
+  }
+  .outro-subtitle {
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 480px;
+    line-height: 1.6;
+  }
+  .outro-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    width: 100%;
+    max-width: 700px;
+  }
+  .outro-item {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    text-align: center;
+    cursor: none;
+    transition: all 0.2s;
+  }
+  .outro-item:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Keyboard shortcut info */
+  .shortcut-info {
+    position: fixed;
+    top: 32px; right: 40px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    z-index: 100;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .k { display: inline-block; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 11px; background: var(--card); }
+
+  /* Entrance animations */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fade-up-in 0.6s forwards;
+  }
+  @keyframes fade-up-in {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .delay-1 { animation-delay: 0.1s; }
+  .delay-2 { animation-delay: 0.2s; }
+  .delay-3 { animation-delay: 0.3s; }
+  .delay-4 { animation-delay: 0.4s; }
+  .delay-5 { animation-delay: 0.5s; }
+  .delay-6 { animation-delay: 0.6s; }
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+<div class="grid-bg"></div>
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+<div class="blob blob-3"></div>
+
+<div class="slide-label" id="slideLabel">LU3-Email Marketing</div>
+<div class="shortcut-info">
+  <span class="k">←</span><span class="k">→</span> navigate &nbsp;·&nbsp; <span class="k">F</span> fullscreen
+</div>
+
+<div id="presentation">
+
+  <!-- SLIDE 0: TITLE -->
+  <div class="slide active" data-label="Overview">
+    <div class="slide-inner slide-title-content">
+      <!-- <div class="eyebrow fade-up">Masterclass Series · 2024</div> -->
+      <div class="main-title fade-up delay-1">
+               <span class="highlight">LU3 - Email<br>Marketing</span>
+      </div>
+      <p class="title-desc fade-up delay-2">A comprehensive guide to building campaigns that convert, automate workflows, and comply with global regulations.</p>
+      <div class="title-stats fade-up delay-3">
+        <div class="stat-item">
+          <span class="stat-num">$42</span>
+          <span class="stat-label">Return per $1 spent</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">4.3B</span>
+          <span class="stat-label">Email users worldwide</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">4×</span>
+          <span class="stat-label">Higher than social ROI</span>
+        </div>
+      </div>
+      <div class="title-nav-hint fade-up delay-4">
+        <span class="key-hint">→</span> Press arrow to begin
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 1: Section 1 Intro -->
+  <div class="slide" data-label="01 · Introduction">
+    <div class="slide-inner">
+      <div class="big-accent">01</div>
+      <div class="section-header">
+        <span class="section-num fade-up">Section 01</span>
+        <h2 class="section-title fade-up delay-1">Introduction to<br>Email Marketing</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="cards-grid">
+        <div class="card fade-up delay-2">
+          <span class="card-icon">📊</span>
+          <div class="card-title">Importance</div>
+          <p class="card-body">Email marketing delivers the highest ROI of any digital channel — $42 for every $1 spent, making it the backbone of digital revenue strategy.</p>
+          <span class="card-tag">High Impact</span>
+        </div>
+        <div class="card fade-up delay-3">
+          <span class="card-icon">🏗️</span>
+          <div class="card-title">Building a List</div>
+          <p class="card-body">Grow an engaged subscriber base through lead magnets, opt-in forms, landing pages, and ethical list acquisition strategies.</p>
+          <span class="card-tag">Foundation</span>
+        </div>
+        <div class="card fade-up delay-4">
+          <span class="card-icon">📨</span>
+          <div class="card-title">Campaign Types</div>
+          <p class="card-body">Newsletters, promotional blasts, drip sequences, re-engagement, transactional — each serves a unique role in the customer journey.</p>
+          <span class="card-tag">Strategy</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 2: Importance deep dive -->
+  <div class="slide" data-label="01a · Importance">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">01a · Importance of Email Marketing</span>
+        <h2 class="section-title fade-up delay-1">Why Email Still<br>Dominates</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="two-col">
+        <div class="col-content fade-up delay-2">
+          <ul class="fancy-list">
+            <li><strong>Direct channel ownership</strong> — unlike social media, you own your email list and aren't subject to algorithm changes.</li>
+            <li><strong>Personalization at scale</strong> — segment audiences and deliver tailored messages to thousands simultaneously.</li>
+            <li><strong>Measurable results</strong> — open rates, CTR, conversions — every metric is trackable in real time.</li>
+            <li><strong>High intent audience</strong> — subscribers have explicitly opted in, signaling genuine interest in your brand.</li>
+            <li><strong>Cross-device reach</strong> — emails are read on mobile, desktop, and tablets, ensuring wide reach.</li>
+          </ul>
+        </div>
+        <div class="col-content fade-up delay-3">
+          <div class="code-block">
+<span class="cm">// Average email marketing metrics</span>
+<span class="kw">const</span> benchmarks = {
+  openRate: <span class="str">"21.33%"</span>, <span class="cm">// avg all industries</span>
+  clickRate: <span class="str">"2.62%"</span>,
+  conversionRate: <span class="str">"1.22%"</span>,
+  <span class="fn">roi</span>: <span class="str">"4200%"</span>, <span class="cm">// $42 per $1</span>
+  unsubscribeRate: <span class="str">"0.27%"</span>
+};
+          </div>
+          <div class="pills">
+            <span class="pill active">Newsletters</span>
+            <span class="pill">Promotions</span>
+            <span class="pill">Drip Campaigns</span>
+            <span class="pill">Transactional</span>
+            <span class="pill">Re-engagement</span>
+            <span class="pill">Welcome Series</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Building email list -->
+  <div class="slide" data-label="01b · Email List">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">01b · Building an Email List</span>
+        <h2 class="section-title fade-up delay-1">Growing Your<br>Subscriber Base</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="two-col">
+        <div class="col-content">
+          <div class="timeline fade-up delay-2">
+            <div class="timeline-item">
+              <div class="timeline-dot">1</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Create Irresistible Lead Magnets</div>
+                <div class="timeline-desc">Offer free ebooks, checklists, templates, or mini-courses in exchange for email sign-ups. Value first.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot">2</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Optimize Sign-up Forms</div>
+                <div class="timeline-desc">Place opt-in forms at high-visibility spots: hero sections, exit-intent popups, blog sidebars, and footers.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot">3</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Leverage Landing Pages</div>
+                <div class="timeline-desc">Dedicated conversion pages with single CTAs, clear value propositions, and social proof.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot">4</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Double Opt-In Confirmation</div>
+                <div class="timeline-desc">Confirm subscriptions via a second email to ensure list quality and GDPR compliance.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-content fade-up delay-3">
+          <div class="card" style="height:100%">
+            <span class="card-icon">⚡</span>
+            <div class="card-title">Pro Growth Tactics</div>
+            <ul class="fancy-list" style="margin-top: 8px;">
+              <li>Run contests and giveaways requiring email entry</li>
+              <li>Gate premium content behind email walls</li>
+              <li>Use social proof ("Join 50,000+ subscribers")</li>
+              <li>Partner with complementary brands for co-promotions</li>
+              <li>Add email capture to checkout flows</li>
+              <li>Webinar registrations as list builders</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: Section 2 Intro -->
+  <div class="slide" data-label="02 · Campaign Creation">
+    <div class="slide-inner">
+      <div class="big-accent">02</div>
+      <div class="section-header">
+        <span class="section-num fade-up">Section 02</span>
+        <h2 class="section-title fade-up delay-1">Email Campaign<br>Creation</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="cards-grid">
+        <div class="card fade-up delay-2">
+          <span class="card-icon">✍️</span>
+          <div class="card-title">Compelling Content</div>
+          <p class="card-body">Craft subject lines that get opened, body copy that engages, and CTAs that convert. Every word earns its place.</p>
+          <span class="card-tag">Copywriting</span>
+        </div>
+        <div class="card fade-up delay-3">
+          <span class="card-icon">🎨</span>
+          <div class="card-title">Template Design</div>
+          <p class="card-body">Responsive, brand-consistent HTML templates optimized for every email client — from Gmail to Outlook to Apple Mail.</p>
+          <span class="card-tag">Design</span>
+        </div>
+        <div class="card fade-up delay-4">
+          <span class="card-icon">🎯</span>
+          <div class="card-title">Personalization</div>
+          <p class="card-body">Segment audiences by behavior, demographics, and lifecycle stage to deliver hyper-relevant messages that resonate.</p>
+          <span class="card-tag">Targeting</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 5: Crafting content -->
+  <div class="slide" data-label="02a · Content">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">02a · Crafting Compelling Content</span>
+        <h2 class="section-title fade-up delay-1">Words That<br>Convert</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="two-col">
+        <div class="col-content fade-up delay-2">
+          <ul class="fancy-list">
+            <li><strong>Subject lines under 50 chars</strong> — get to the point; curiosity gaps and numbers drive open rates up to 22%.</li>
+            <li><strong>Preheader text</strong> — the second subject line; use it to complement and extend the subject line's hook.</li>
+            <li><strong>One email, one goal</strong> — don't dilute focus. Each email should have a single clear call-to-action.</li>
+            <li><strong>Mobile-first copy</strong> — 60%+ emails opened on mobile. Short paragraphs, scannable structure.</li>
+            <li><strong>Storytelling</strong> — lead with a narrative. People connect with stories before they connect with products.</li>
+            <li><strong>Urgency & scarcity</strong> — "24 hours left" and "only 5 spots remaining" drive immediate action.</li>
+          </ul>
+        </div>
+        <div class="col-content fade-up delay-3">
+          <div class="code-block">
+<span class="cm">// Subject line formula examples</span>
+
+<span class="cm">// Curiosity gap</span>
+<span class="str">"You won't believe what happened to Sarah"</span>
+
+<span class="cm">// Number + benefit</span>
+<span class="str">"7 ways to 10x your open rates"</span>
+
+<span class="cm">// Personalized</span>
+<span class="str">"{{first_name}}, your free report is ready"</span>
+
+<span class="cm">// Urgency</span>
+<span class="str">"⚡ Last 3 hours: 50% off ends tonight"</span>
+
+<span class="cm">// Question</span>
+<span class="str">"Are you making these email mistakes?"</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Personalization -->
+  <div class="slide" data-label="02c · Personalization">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">02c · Personalization & Segmentation</span>
+        <h2 class="section-title fade-up delay-1">The Right Message<br>to the Right Person</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="cards-grid">
+        <div class="card fade-up delay-2">
+          <span class="card-icon">📍</span>
+          <div class="card-title">Demographic Segmentation</div>
+          <p class="card-body">Divide by age, location, gender, job title, or company size. Tailor tone, offers, and content to each segment's unique context.</p>
+        </div>
+        <div class="card fade-up delay-3">
+          <span class="card-icon">🔄</span>
+          <div class="card-title">Behavioral Segmentation</div>
+          <p class="card-body">Segment by purchase history, email engagement, website activity, and product usage. Act on signals your subscribers send.</p>
+        </div>
+        <div class="card fade-up delay-4">
+          <span class="card-icon">🗺️</span>
+          <div class="card-title">Lifecycle Stage</div>
+          <p class="card-body">New subscriber → prospect → customer → loyal advocate. Each stage needs different messaging and incentives to progress.</p>
+        </div>
+      </div>
+      <div class="pills fade-up delay-5" style="margin-top: 20px;">
+        <span class="pill active">Dynamic Content Blocks</span>
+        <span class="pill">Product Recommendations</span>
+        <span class="pill">Name Personalization</span>
+        <span class="pill">Send-time Optimization</span>
+        <span class="pill">RFM Scoring</span>
+        <span class="pill">Predictive Segmentation</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: Section 3 Intro -->
+  <div class="slide" data-label="03 · Automation">
+    <div class="slide-inner">
+      <div class="big-accent">03</div>
+      <div class="section-header">
+        <span class="section-num fade-up">Section 03</span>
+        <h2 class="section-title fade-up delay-1">Email<br>Automation</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="cards-grid">
+        <div class="card fade-up delay-2">
+          <span class="card-icon">⚙️</span>
+          <div class="card-title">Automated Sequences</div>
+          <p class="card-body">Build drip campaigns that nurture leads over time — from welcome series to multi-week educational sequences that run on autopilot.</p>
+          <span class="card-tag">Efficiency</span>
+        </div>
+        <div class="card fade-up delay-3">
+          <span class="card-icon">⚡</span>
+          <div class="card-title">Trigger-Based Emails</div>
+          <p class="card-body">Fire emails based on user actions: cart abandonment, page visits, purchase completions, anniversaries, or inactivity signals.</p>
+          <span class="card-tag">Behavioral</span>
+        </div>
+        <div class="card fade-up delay-4">
+          <span class="card-icon">🛠️</span>
+          <div class="card-title">Automation Tools</div>
+          <p class="card-body">Mailchimp, HubSpot, Klaviyo, ActiveCampaign — each platform offers visual workflow builders with powerful conditional logic.</p>
+          <span class="card-tag">Platforms</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 8: Trigger-based + sequences -->
+  <div class="slide" data-label="03ab · Sequences & Triggers">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">03a–b · Sequences & Trigger-Based Emails</span>
+        <h2 class="section-title fade-up delay-1">Automation<br>in Action</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="two-col">
+        <div class="col-content fade-up delay-2">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 8px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em;">Automated Sequence Example</p>
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-dot">D0</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Welcome Email</div>
+                <div class="timeline-desc">Immediate delivery. Brand intro, key benefits, what to expect next.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot">D2</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Value Email</div>
+                <div class="timeline-desc">Educational content. No sales pitch. Build trust with your best resource.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot">D5</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Social Proof Email</div>
+                <div class="timeline-desc">Case studies, testimonials, and customer success stories.</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-dot">D7</div>
+              <div class="timeline-content">
+                <div class="timeline-title">Offer Email</div>
+                <div class="timeline-desc">Time-limited offer. Incentivize the first purchase or conversion.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-content fade-up delay-3">
+          <p style="font-size: 13px; color: var(--muted); margin-bottom: 12px; font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 0.1em;">Key Trigger Events</p>
+          <ul class="fancy-list">
+            <li><strong>Cart Abandonment</strong> — 69% average abandon rate; recovery emails generate 5–11% conversions.</li>
+            <li><strong>Browse Abandonment</strong> — re-engage visitors who viewed products but didn't add to cart.</li>
+            <li><strong>Post-Purchase</strong> — order confirmations, shipping updates, upsell recommendations.</li>
+            <li><strong>Win-Back Campaigns</strong> — trigger after 90 days of inactivity with a compelling re-engagement offer.</li>
+            <li><strong>Birthday / Anniversary</strong> — time-sensitive personal emails with exclusive rewards.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: Tools -->
+  <div class="slide" data-label="03c · Tools">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">03c · Tools for Email Automation</span>
+        <h2 class="section-title fade-up delay-1">Platforms That<br>Power Automation</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="tools-row fade-up delay-2">
+        <div class="tool-card">
+          <span style="font-size:24px">🐒</span>
+          <div class="tool-name">Mailchimp</div>
+          <div class="tool-desc">Beginner-friendly drag-and-drop builder. Great for SMBs with basic automation needs and solid analytics.</div>
+          <span class="tool-badge">SMB / Starter</span>
+        </div>
+        <div class="tool-card">
+          <span style="font-size:24px">🟠</span>
+          <div class="tool-name">HubSpot</div>
+          <div class="tool-desc">Full CRM + email suite. Best for B2B companies wanting deep integration with sales pipelines and lead scoring.</div>
+          <span class="tool-badge">Enterprise / B2B</span>
+        </div>
+        <div class="tool-card">
+          <span style="font-size:24px">🔴</span>
+          <div class="tool-name">Klaviyo</div>
+          <div class="tool-desc">E-commerce powerhouse. Native Shopify/WooCommerce integrations, advanced segmentation and predictive analytics.</div>
+          <span class="tool-badge">E-commerce</span>
+        </div>
+      </div>
+      <div class="tools-row fade-up delay-3">
+        <div class="tool-card">
+          <span style="font-size:24px">⚡</span>
+          <div class="tool-name">ActiveCampaign</div>
+          <div class="tool-desc">Industry-leading visual automation builder with advanced conditional logic. Best for complex behavioral workflows.</div>
+          <span class="tool-badge">Advanced Automation</span>
+        </div>
+        <div class="tool-card">
+          <span style="font-size:24px">📧</span>
+          <div class="tool-name">Brevo (Sendinblue)</div>
+          <div class="tool-desc">Affordable transactional email + marketing in one platform. Excellent deliverability and EU-based (GDPR-ready).</div>
+          <span class="tool-badge">Transactional</span>
+        </div>
+        <div class="tool-card">
+          <span style="font-size:24px">🔵</span>
+          <div class="tool-name">ConvertKit</div>
+          <div class="tool-desc">Creator-focused. Ideal for bloggers, podcasters, and course creators with simple but powerful automation.</div>
+          <span class="tool-badge">Creators</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 10: Section 4 Intro -->
+  <div class="slide" data-label="04 · Best Practices">
+    <div class="slide-inner">
+      <div class="big-accent">04</div>
+      <div class="section-header">
+        <span class="section-num fade-up">Section 04</span>
+        <h2 class="section-title fade-up delay-1">Email Marketing<br>Best Practices</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="cards-grid">
+        <div class="card fade-up delay-2">
+          <span class="card-icon">📬</span>
+          <div class="card-title">Deliverability</div>
+          <p class="card-body">Ensure your emails land in inboxes, not spam folders, by maintaining sender reputation, authenticating domains, and managing list hygiene.</p>
+          <span class="card-tag">Technical</span>
+        </div>
+        <div class="card fade-up delay-3">
+          <span class="card-icon">🔬</span>
+          <div class="card-title">A/B Testing</div>
+          <p class="card-body">Scientifically test subject lines, send times, CTAs, and content variants. Let data drive every optimization decision.</p>
+          <span class="card-tag">Optimization</span>
+        </div>
+        <div class="card fade-up delay-4">
+          <span class="card-icon">⚖️</span>
+          <div class="card-title">Compliance</div>
+          <p class="card-body">Navigate CAN-SPAM, GDPR, and CASL requirements with confidence. Build trust through transparency and subscriber rights.</p>
+          <span class="card-tag">Legal</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: Deliverability + A/B -->
+  <div class="slide" data-label="04ab · Deliverability & A/B">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">04a–b · Deliverability & A/B Testing</span>
+        <h2 class="section-title fade-up delay-1">Reach Inboxes,<br>Not Spam</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="two-col">
+        <div class="col-content fade-up delay-2">
+          <div class="card" style="margin-bottom: 0">
+            <span class="card-icon">📬</span>
+            <div class="card-title">Deliverability Checklist</div>
+            <ul class="fancy-list" style="margin-top:8px">
+              <li>Set up <strong>SPF, DKIM, and DMARC</strong> DNS records</li>
+              <li><strong>Warm up</strong> new IP addresses gradually over weeks</li>
+              <li>Clean list regularly — remove <strong>bounces and inactives</strong></li>
+              <li>Maintain <strong>spam complaint rate</strong> below 0.1%</li>
+              <li>Avoid spam trigger words: "FREE!!!", "CLICK NOW", "100% guaranteed"</li>
+              <li>Always include a visible <strong>unsubscribe link</strong></li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-content fade-up delay-3">
+          <div class="card" style="margin-bottom:0">
+            <span class="card-icon">🔬</span>
+            <div class="card-title">A/B Testing Framework</div>
+            <ul class="fancy-list" style="margin-top:8px">
+              <li><strong>Test one variable at a time</strong> — subject line OR send time, never both</li>
+              <li><strong>Minimum sample size</strong> of 1,000 subscribers per variant for statistical significance</li>
+              <li>Run tests for at least <strong>24–48 hours</strong> to account for time-zone variation</li>
+              <li>Use a <strong>90% confidence threshold</strong> before declaring a winner</li>
+              <li>Document results and <strong>build a testing roadmap</strong> from learnings</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 12: Compliance -->
+  <div class="slide" data-label="04c · Compliance">
+    <div class="slide-inner">
+      <div class="section-header">
+        <span class="section-num fade-up">04c · Compliance with Regulations</span>
+        <h2 class="section-title fade-up delay-1">Legal Foundations<br>of Email Marketing</h2>
+        <div class="section-divider fade-up delay-2"></div>
+      </div>
+      <div class="compliance-grid">
+        <div class="compliance-card fade-up delay-2">
+          <div class="compliance-name">CAN-SPAM</div>
+          <div class="compliance-desc">US federal law governing commercial email. Applies to all commercial messages sent to US recipients.</div>
+          <ul class="fancy-list">
+            <li>No deceptive subject lines or sender information</li>
+            <li>Must include physical mailing address</li>
+            <li>Clear opt-out mechanism in every email</li>
+            <li>Honor unsubscribe requests within <strong>10 business days</strong></li>
+          </ul>
+        </div>
+        <div class="compliance-card fade-up delay-3">
+          <div class="compliance-name">GDPR</div>
+          <div class="compliance-desc">EU regulation requiring explicit consent and data transparency for all EU residents, regardless of sender location.</div>
+          <ul class="fancy-list">
+            <li>Require <strong>explicit, affirmative consent</strong> to subscribe</li>
+            <li>Right to access, correct, and delete personal data</li>
+            <li>Data breach notification within <strong>72 hours</strong></li>
+            <li>Document all consent with timestamps and source</li>
+          </ul>
+        </div>
+        <div class="compliance-card fade-up delay-4">
+          <div class="compliance-name">CASL</div>
+          <div class="compliance-desc">Canada's Anti-Spam Legislation — one of the world's strictest. Applies to emails sent to or from Canada.</div>
+          <ul class="fancy-list">
+            <li>Requires <strong>express or implied consent</strong> before sending</li>
+            <li>Consent expires after 2 years without renewal</li>
+            <li>Clear sender identification required</li>
+            <li>Penalties up to <strong>$10M CAD</strong> per violation</li>
+          </ul>
+        </div>
+        <div class="compliance-card fade-up delay-5">
+          <div class="compliance-name">Best Practices</div>
+          <div class="compliance-desc">Universal ethical standards that build subscriber trust regardless of legal jurisdiction.</div>
+          <ul class="fancy-list">
+            <li>Preference center for frequency and content control</li>
+            <li>Easy one-click unsubscribe in every email footer</li>
+            <li>Privacy policy linked from sign-up forms</li>
+            <li>Regular consent audits and database hygiene</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 13: Outro -->
+  <div class="slide" data-label="Summary">
+    <div class="slide-inner outro-content">
+      <div class="outro-icon fade-up">📧</div>
+      <h2 class="outro-title fade-up delay-1">You're Ready to<br>Send Smarter</h2>
+      <p class="outro-subtitle fade-up delay-2">From building your first list to automating full lifecycle campaigns — apply these strategies to drive measurable growth through email.</p>
+      <div class="outro-grid fade-up delay-3">
+        <div class="outro-item">01<br><br>Introduction</div>
+        <div class="outro-item">02<br><br>Campaign Creation</div>
+        <div class="outro-item">03<br><br>Automation</div>
+        <div class="outro-item">04<br><br>Best Practices</div>
+      </div>
+      <div class="title-nav-hint fade-up delay-4">
+        <span class="key-hint">←</span> Press ← to revisit any section
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Progress bar -->
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- Dots nav -->
+<div class="dots" id="dots"></div>
+
+<!-- Arrow nav -->
+<div class="nav">
+  <button class="nav-btn" id="prevBtn" onclick="changeSlide(-1)">←</button>
+  <span class="nav-count" id="navCount">1 / 14</span>
+  <button class="nav-btn" id="nextBtn" onclick="changeSlide(1)">→</button>
+</div>
+
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  document.addEventListener('mousemove', e => {
+    cursor.style.left = e.clientX + 'px';
+    cursor.style.top = e.clientY + 'px';
+    ring.style.left = e.clientX + 'px';
+    ring.style.top = e.clientY + 'px';
+  });
+  document.querySelectorAll('button, .card, .tool-card, .compliance-card, .pill, .dot, .outro-item').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      cursor.style.width = '20px'; cursor.style.height = '20px';
+      cursor.style.background = 'var(--accent2)';
+      ring.style.width = '52px'; ring.style.height = '52px';
+    });
+    el.addEventListener('mouseleave', () => {
+      cursor.style.width = '10px'; cursor.style.height = '10px';
+      cursor.style.background = 'var(--accent)';
+      ring.style.width = '36px'; ring.style.height = '36px';
+    });
+  });
+
+  // Slides
+  const slides = document.querySelectorAll('.slide');
+  const totalSlides = slides.length;
+  let current = 0;
+  let isTransitioning = false;
+
+  const labels = Array.from(slides).map(s => s.dataset.label || 'Email Marketing');
+
+  // Create dots
+  const dotsEl = document.getElementById('dots');
+  slides.forEach((_, i) => {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => goTo(i));
+    dotsEl.appendChild(d);
+  });
+
+  function updateUI() {
+    const progress = ((current + 1) / totalSlides) * 100;
+    document.getElementById('progressBar').style.width = progress + '%';
+    document.getElementById('navCount').textContent = `${current + 1} / ${totalSlides}`;
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === totalSlides - 1;
+    document.getElementById('slideLabel').textContent = labels[current];
+    document.querySelectorAll('.dot').forEach((d, i) => {
+      d.classList.toggle('active', i === current);
+    });
+  }
+
+  function goTo(idx) {
+    if (isTransitioning || idx === current || idx < 0 || idx >= totalSlides) return;
+    isTransitioning = true;
+    const prev = current;
+    current = idx;
+
+    slides[prev].classList.remove('active');
+    slides[prev].classList.add('exit');
+
+    // Re-trigger animations on new slide
+    const newSlide = slides[current];
+    const animEls = newSlide.querySelectorAll('.fade-up');
+    animEls.forEach(el => {
+      el.style.animation = 'none';
+      el.offsetHeight;
+      el.style.animation = '';
+    });
+
+    newSlide.classList.add('active');
+    updateUI();
+
+    setTimeout(() => {
+      slides[prev].classList.remove('exit');
+      isTransitioning = false;
+    }, 650);
+  }
+
+  function changeSlide(dir) { goTo(current + dir); }
+
+  // Keyboard
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); changeSlide(1); }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); changeSlide(-1); }
+    if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+
+  // Touch/swipe
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const dx = touchStartX - e.changedTouches[0].clientX;
+    if (Math.abs(dx) > 50) changeSlide(dx > 0 ? 1 : -1);
+  });
+
+  updateUI();
+</script>
+</body>
+</html>
