@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LU4</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Instrument+Sans:wght@300;400;500;600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream: #f5f0e8;
+  --paper: #ede8dc;
+  --ink: #1a1a14;
+  --ink-light: #3d3d30;
+  --muted: #8a8472;
+  --green: #2d5a3d;
+  --green-light: #3d7a52;
+  --green-pale: #e8f0ea;
+  --rust: #c4521a;
+  --rust-pale: #f5ede7;
+  --gold: #b8972a;
+  --border: #d4cdb8;
+  --white: #ffffff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  font-family: 'Instrument Sans', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  cursor: none;
+}
+
+/* ── CURSOR ── */
+.cur { position: fixed; pointer-events: none; z-index: 9999; mix-blend-mode: multiply; }
+#cur-dot {
+  width: 8px; height: 8px;
+  background: var(--green);
+  border-radius: 50%;
+  transform: translate(-50%,-50%);
+  transition: transform .1s, width .15s, height .15s;
+}
+#cur-ring {
+  width: 32px; height: 32px;
+  border: 1.5px solid var(--green);
+  border-radius: 50%;
+  transform: translate(-50%,-50%);
+  opacity: .5;
+  transition: transform .2s ease, width .2s, height .2s, opacity .2s;
+}
+
+/* ── WRAPPER ── */
+#deck {
+  position: relative;
+  width: 100vw; height: 100vh;
+  overflow: hidden;
+}
+
+/* ── SLIDES ── */
+.slide {
+  position: absolute; inset: 0;
+  opacity: 0; pointer-events: none;
+  transform: translateX(60px);
+  transition: opacity .55s cubic-bezier(.4,0,.2,1), transform .55s cubic-bezier(.4,0,.2,1);
+  display: flex;
+}
+.slide.active { opacity: 1; pointer-events: all; transform: translateX(0); }
+.slide.exit    { opacity: 0; transform: translateX(-60px); pointer-events: none; }
+
+/* ── DECORATIVE PAPER TEXTURE ── */
+.slide::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='.03'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0;
+}
+
+/* ── SLIDE INNER ── */
+.s-inner {
+  position: relative; z-index: 1;
+  width: 100%; height: 100%;
+  display: flex;
+}
+
+/* ── SHARED LEFT STRIPE ── */
+.left-stripe {
+  width: 6px;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+/* ── PROGRESS BAR ── */
+#progress {
+  position: fixed; bottom: 0; left: 0;
+  height: 3px;
+  background: var(--green);
+  transition: width .5s cubic-bezier(.4,0,.2,1);
+  z-index: 200;
+}
+
+/* ── DOTS ── */
+#dots {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 8px; align-items: center;
+  z-index: 200;
+}
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all .3s; cursor: none;
+}
+.dot.on { background: var(--green); transform: scale(1.5); }
+
+/* ── NAV ARROWS ── */
+#nav {
+  position: fixed; bottom: 20px; right: 36px;
+  display: flex; gap: 10px; align-items: center;
+  z-index: 200;
+}
+.nav-btn {
+  width: 40px; height: 40px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink);
+  font-size: 16px;
+  cursor: none;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.nav-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-pale); }
+.nav-btn:disabled { opacity: .3; }
+#nav-num {
+  font-family: 'Courier Prime', monospace;
+  font-size: 12px; color: var(--muted);
+}
+
+/* ── SLIDE LABEL ── */
+#slide-label {
+  position: fixed; top: 28px; right: 36px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; color: var(--muted);
+  letter-spacing: .12em; text-transform: uppercase;
+  z-index: 200;
+}
+
+/* ── KEYBOARD HINT ── */
+#kbd-hint {
+  position: fixed; top: 28px; left: 36px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; color: var(--muted);
+  display: flex; gap: 6px; align-items: center;
+  z-index: 200;
+}
+.k {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--white);
+  font-size: 11px;
+  color: var(--ink-light);
+}
+
+/* ─────────────────────────────────────────────
+   SLIDE LAYOUTS
+───────────────────────────────────────────── */
+
+/* ── COVER ── */
+.cover-layout {
+  flex-direction: row;
+  align-items: stretch;
+  background: var(--cream);
+}
+.cover-left {
+  width: 55%;
+  background: var(--green);
+  display: flex; flex-direction: column;
+  justify-content: center;
+  padding: 80px 64px;
+  position: relative;
+  overflow: hidden;
+}
+.cover-left::before {
+  content: '';
+  position: absolute;
+  width: 500px; height: 500px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.08);
+  top: -100px; left: -100px;
+}
+.cover-left::after {
+  content: '';
+  position: absolute;
+  width: 300px; height: 300px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.06);
+  bottom: -60px; right: -60px;
+}
+.cover-tag {
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; letter-spacing: .25em; text-transform: uppercase;
+  color: rgba(255,255,255,.5);
+  margin-bottom: 28px;
+  display: flex; align-items: center; gap: 10px;
+}
+.cover-tag::before {
+  content: '';
+  width: 24px; height: 1px;
+  background: rgba(255,255,255,.4);
+  flex-shrink: 0;
+}
+.cover-h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(52px, 6.5vw, 88px);
+  font-weight: 600;
+  line-height: .95;
+  color: var(--white);
+  letter-spacing: -.02em;
+}
+.cover-h1 em {
+  font-style: italic;
+  font-weight: 300;
+  display: block;
+  color: rgba(255,255,255,.75);
+}
+.cover-sub {
+  margin-top: 28px;
+  font-size: 15px; font-weight: 300;
+  color: rgba(255,255,255,.65);
+  line-height: 1.65;
+  max-width: 360px;
+}
+.cover-stats {
+  display: flex; gap: 36px;
+  margin-top: 48px;
+}
+.cs-item { display: flex; flex-direction: column; gap: 4px; }
+.cs-num {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 32px; font-weight: 700;
+  color: var(--white);
+  line-height: 1;
+}
+.cs-lbl {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; letter-spacing: .1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.45);
+}
+.cover-right {
+  flex: 1;
+  display: flex; flex-direction: column;
+  justify-content: center;
+  padding: 80px 56px;
+  gap: 0;
+}
+.cover-toc-title {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--muted);
+  margin-bottom: 24px;
+  display: flex; align-items: center; gap: 10px;
+}
+.cover-toc-title::after {
+  content: '';
+  flex: 1; height: 1px; background: var(--border);
+}
+.toc-item {
+  display: flex; align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  gap: 20px;
+  cursor: none;
+  transition: all .2s;
+}
+.toc-item:hover .toc-name { color: var(--green); }
+.toc-num {
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; color: var(--muted);
+  width: 24px; flex-shrink: 0;
+}
+.toc-name {
+  font-size: 15px; font-weight: 500;
+  color: var(--ink); flex: 1;
+  transition: color .2s;
+}
+.toc-arr {
+  font-size: 14px; color: var(--border);
+  transition: all .2s;
+}
+.toc-item:hover .toc-arr { color: var(--green); transform: translateX(4px); }
+
+/* ── SECTION INTRO ── */
+.sec-intro-layout {
+  background: var(--paper);
+  align-items: center;
+  justify-content: center;
+}
+.sec-intro-inner {
+  max-width: 820px;
+  padding: 60px 80px;
+  display: flex; flex-direction: column; gap: 32px;
+  width: 100%;
+}
+.sec-eyebrow {
+  display: flex; align-items: center; gap: 12px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--green);
+}
+.sec-eyebrow-line { width: 32px; height: 2px; background: var(--green); }
+.sec-big-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(42px, 5.5vw, 72px);
+  font-weight: 700; line-height: 1.05;
+  color: var(--ink); letter-spacing: -.02em;
+}
+.sec-big-title span { color: var(--green); font-style: italic; }
+.sec-rule { width: 100%; height: 1px; background: var(--border); }
+.sec-cards {
+  display: grid; gap: 16px;
+}
+.sec-cards.three { grid-template-columns: repeat(3,1fr); }
+.sec-cards.two   { grid-template-columns: repeat(2,1fr); }
+.s-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px 20px;
+  position: relative; overflow: hidden;
+  transition: all .25s;
+}
+.s-card:hover { border-color: var(--green); transform: translateY(-3px); box-shadow: 0 8px 24px rgba(45,90,61,.1); }
+.s-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--green);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .3s;
+}
+.s-card:hover::before { transform: scaleX(1); }
+.s-card-icon { font-size: 26px; margin-bottom: 12px; display: block; }
+.s-card-lbl {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--green);
+  margin-bottom: 8px;
+}
+.s-card-title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
+.s-card-body { font-size: 13px; font-weight: 300; color: var(--muted); line-height: 1.65; }
+.s-card-tag {
+  display: inline-block;
+  margin-top: 12px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--green-pale);
+  color: var(--green);
+  border: 1px solid rgba(45,90,61,.2);
+}
+
+/* ── SPLIT LAYOUT ── */
+.split-layout {
+  background: var(--cream);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.split-inner {
+  width: 100%; max-width: 1080px;
+  padding: 56px 80px;
+  display: flex; flex-direction: column; gap: 28px;
+}
+.split-header { display: flex; flex-direction: column; gap: 10px; }
+.split-eyebrow {
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--rust);
+  display: flex; align-items: center; gap: 8px;
+}
+.split-eyebrow::before { content: '//'; color: var(--muted); }
+.split-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(30px, 3.8vw, 48px);
+  font-weight: 600; line-height: 1.1;
+  color: var(--ink); letter-spacing: -.015em;
+}
+.split-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+
+/* ── FANCY LIST ── */
+.f-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.f-list li {
+  display: flex; gap: 12px; align-items: flex-start;
+  font-size: 14px; font-weight: 300; color: var(--ink-light); line-height: 1.55;
+}
+.f-list li::before {
+  content: '—';
+  color: var(--green); font-family: 'Courier Prime', monospace;
+  flex-shrink: 0; margin-top: 1px;
+}
+.f-list li strong { font-weight: 600; color: var(--ink); }
+
+/* ── CALLOUT BOX ── */
+.callout {
+  background: var(--green);
+  border-radius: 8px;
+  padding: 24px 22px;
+  color: white;
+}
+.callout-lbl {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; letter-spacing: .15em; text-transform: uppercase;
+  color: rgba(255,255,255,.55); margin-bottom: 10px;
+}
+.callout-body { font-size: 14px; font-weight: 300; line-height: 1.65; color: rgba(255,255,255,.88); }
+.callout-body strong { color: white; font-weight: 600; }
+
+/* ── MONO BOX ── */
+.mono-box {
+  background: var(--ink);
+  border-radius: 8px;
+  padding: 22px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 13px;
+  line-height: 1.8;
+  color: #a0c8a8;
+}
+.mono-box .c  { color: #606860; }
+.mono-box .k  { color: #e8b84a; }
+.mono-box .s  { color: #7ecfb2; }
+.mono-box .v  { color: #f0a868; }
+
+/* ── TIMELINE ── */
+.timeline { display: flex; flex-direction: column; position: relative; }
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 13px; top: 6px; bottom: 6px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--green), var(--border));
+}
+.tl-item { display: flex; gap: 20px; padding-bottom: 20px; }
+.tl-dot {
+  width: 26px; height: 26px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--white);
+  border: 2px solid var(--green);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; color: var(--green);
+  z-index: 1;
+}
+.tl-body { padding-top: 3px; }
+.tl-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.tl-desc  { font-size: 13px; font-weight: 300; color: var(--muted); line-height: 1.5; }
+
+/* ── GRID CONTENT TYPES ── */
+.ct-grid {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 12px;
+}
+.ct-item {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: all .2s;
+}
+.ct-item:hover { border-color: var(--rust); transform: translateY(-3px); box-shadow: 0 6px 18px rgba(196,82,26,.08); }
+.ct-emoji { font-size: 22px; }
+.ct-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+.ct-meta { font-size: 12px; color: var(--muted); font-weight: 300; line-height: 1.4; }
+.ct-badge {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; padding: 2px 8px;
+  border-radius: 3px;
+  align-self: flex-start;
+  background: var(--rust-pale);
+  color: var(--rust);
+  border: 1px solid rgba(196,82,26,.2);
+}
+
+/* ── PLATFORM ROW ── */
+.platform-row {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 14px;
+}
+.platform-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px; padding: 20px 18px;
+  display: flex; flex-direction: column; gap: 8px;
+  transition: all .25s;
+}
+.platform-card:hover { border-color: var(--gold); transform: translateY(-3px); box-shadow: 0 8px 20px rgba(184,151,42,.1); }
+.platform-name { font-size: 15px; font-weight: 600; color: var(--ink); }
+.platform-desc { font-size: 13px; color: var(--muted); font-weight: 300; line-height: 1.5; }
+.platform-tag {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; padding: 3px 8px;
+  border-radius: 3px;
+  align-self: flex-start;
+  background: #fdf6e3;
+  color: var(--gold);
+  border: 1px solid rgba(184,151,42,.25);
+}
+
+/* ── METRIC CARDS ── */
+.metric-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; }
+.metric-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 22px 18px;
+  display: flex; flex-direction: column; gap: 6px;
+  transition: all .25s;
+}
+.metric-card:hover { border-color: var(--green); box-shadow: 0 6px 18px rgba(45,90,61,.08); }
+.metric-icon { font-size: 22px; }
+.metric-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+.metric-desc { font-size: 12px; color: var(--muted); line-height: 1.5; font-weight: 300; }
+.metric-val {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 28px; font-weight: 700;
+  color: var(--green); line-height: 1;
+  margin-top: 4px;
+}
+
+/* ── CALENDAR ── */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7,1fr);
+  gap: 6px;
+}
+.cal-hdr {
+  font-family: 'Courier Prime', monospace;
+  font-size: 10px; text-align: center;
+  text-transform: uppercase; letter-spacing: .08em;
+  color: var(--muted); padding: 4px 0;
+}
+.cal-day {
+  aspect-ratio: 1;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 3px;
+  font-size: 12px; color: var(--ink-light);
+  transition: all .2s; cursor: none;
+}
+.cal-day:hover { border-color: var(--green); background: var(--green-pale); }
+.cal-day.has-post { border-color: var(--green); background: var(--green-pale); }
+.cal-day.has-video { border-color: var(--rust); background: var(--rust-pale); }
+.cal-day.has-email { border-color: var(--gold); background: #fdf6e3; }
+.cal-day .cal-dot { width: 5px; height: 5px; border-radius: 50%; }
+.cal-day .cd-green { background: var(--green); }
+.cal-day .cd-rust   { background: var(--rust); }
+.cal-day .cd-gold   { background: var(--gold); }
+.cal-day.empty { background: transparent; border-color: transparent; }
+
+/* ── OUTRO ── */
+.outro-layout {
+  background: var(--green);
+  align-items: center; justify-content: center;
+}
+.outro-inner {
+  text-align: center;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 28px;
+  max-width: 700px; padding: 60px 40px;
+}
+.outro-eyebrow {
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; letter-spacing: .25em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.5);
+  display: flex; align-items: center; gap: 12px;
+}
+.outro-eyebrow::before, .outro-eyebrow::after {
+  content: ''; flex: 1; height: 1px;
+  background: rgba(255,255,255,.2);
+}
+.outro-h {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(40px, 6vw, 72px);
+  font-weight: 700; color: var(--white);
+  line-height: 1.05; letter-spacing: -.02em;
+}
+.outro-h em { font-style: italic; font-weight: 300; color: rgba(255,255,255,.75); display: block; }
+.outro-sub {
+  font-size: 15px; font-weight: 300;
+  color: rgba(255,255,255,.65);
+  line-height: 1.65; max-width: 500px;
+}
+.outro-pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.o-pill {
+  padding: 7px 18px;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 30px;
+  font-family: 'Courier Prime', monospace;
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: rgba(255,255,255,.65);
+  transition: all .2s; cursor: none;
+}
+.o-pill:hover { border-color: rgba(255,255,255,.7); color: white; background: rgba(255,255,255,.08); }
+
+/* ── ANIMATIONS ── */
+.ani { opacity: 0; transform: translateY(18px); animation: ani-in .5s forwards; }
+@keyframes ani-in { to { opacity: 1; transform: translateY(0); } }
+.d1 { animation-delay: .08s; }
+.d2 { animation-delay: .16s; }
+.d3 { animation-delay: .24s; }
+.d4 { animation-delay: .32s; }
+.d5 { animation-delay: .40s; }
+.d6 { animation-delay: .48s; }
+.d7 { animation-delay: .56s; }
+</style>
+</head>
+<body>
+
+<div class="cur" id="cur-dot"></div>
+<div class="cur" id="cur-ring"></div>
+
+<div id="slide-label">Content Marketing</div>
+<div id="kbd-hint">
+  <span class="k">←</span><span class="k">→</span>&nbsp;navigate &nbsp;·&nbsp; <span class="k">F</span> fullscreen
+</div>
+
+<div id="deck">
+
+  <!-- ══ SLIDE 0: COVER ══ -->
+  <div class="slide active" data-label="Overview">
+    <div class="s-inner cover-layout">
+      <div class="cover-left">
+        <!-- <div class="cover-tag ani">A Field Guide · 2024</div> -->
+        <div class="cover-h1 ani d2">
+          <strong>LU4-Content Marketing</strong>
+        </div>
+        <p class="cover-sub ani d3">From first idea to full funnel — a comprehensive guide to creating, distributing, and measuring content that builds audiences and drives growth.</p>
+        <div class="cover-stats ani d4">
+          <div class="cs-item">
+            <span class="cs-num">3×</span>
+            <span class="cs-lbl">More leads than ads</span>
+          </div>
+          <div class="cs-item">
+            <span class="cs-num">62%</span>
+            <span class="cs-lbl">Lower cost per lead</span>
+          </div>
+          <div class="cs-item">
+            <span class="cs-num">7.8B</span>
+            <span class="cs-lbl">Daily content consumers</span>
+          </div>
+        </div>
+      </div>
+      <div class="cover-right">
+        <div class="cover-toc-title ani d2">Contents</div>
+        <div class="toc-item ani d3">
+          <span class="toc-num">01</span>
+          <span class="toc-name">Introduction to Content Marketing</span>
+          <span class="toc-arr">→</span>
+        </div>
+        <div class="toc-item ani d4">
+          <span class="toc-num">02</span>
+          <span class="toc-name">Content Creation</span>
+          <span class="toc-arr">→</span>
+        </div>
+        <div class="toc-item ani d5">
+          <span class="toc-num">03</span>
+          <span class="toc-name">Content Distribution</span>
+          <span class="toc-arr">→</span>
+        </div>
+        <div class="toc-item ani d6">
+          <span class="toc-num">04</span>
+          <span class="toc-name">Content Marketing Strategy</span>
+          <span class="toc-arr">→</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 1: Section 1 Intro ══ -->
+  <div class="slide" data-label="01 · Introduction">
+    <div class="s-inner sec-intro-layout">
+      <div class="sec-intro-inner">
+        <div class="sec-eyebrow ani"><div class="sec-eyebrow-line"></div>Topic One</div>
+        <h2 class="sec-big-title ani d2">Introduction to<br><span>Content Marketing</span></h2>
+        <div class="sec-rule ani d2"></div>
+        <div class="sec-cards three ani d3">
+          <div class="s-card">
+            <span class="s-card-icon">📖</span>
+            <div class="s-card-lbl">Definition</div>
+            <div class="s-card-title">What Is It?</div>
+            <p class="s-card-body">A strategic approach to creating and distributing valuable, relevant content to attract and retain a defined audience.</p>
+            <span class="s-card-tag">Foundation</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">📈</span>
+            <div class="s-card-lbl">Value</div>
+            <div class="s-card-title">Why It Works</div>
+            <p class="s-card-body">Builds trust, establishes authority, generates organic traffic, and nurtures long-term customer relationships without direct selling.</p>
+            <span class="s-card-tag">Benefits</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">🎨</span>
+            <div class="s-card-lbl">Formats</div>
+            <div class="s-card-title">Content Types</div>
+            <p class="s-card-body">Blogs, videos, infographics, podcasts, case studies, social posts — each format serves a distinct role in the audience journey.</p>
+            <span class="s-card-tag">Formats</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 2: What is Content Marketing ══ -->
+  <div class="slide" data-label="01a · Definition">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">What is Content Marketing</div>
+          <div class="split-title ani d2">Creating Value, Not<br>Just Advertisements</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3">
+            <ul class="f-list">
+              <li><strong>Audience-first philosophy</strong> — content serves the reader's needs before the brand's needs. Utility builds loyalty.</li>
+              <li><strong>Long-term asset building</strong> — unlike ads that stop when budgets run out, quality content compounds in value over time.</li>
+              <li><strong>Trust at scale</strong> — 70% of people prefer learning about a brand through articles rather than ads.</li>
+              <li><strong>SEO flywheel</strong> — each piece of content adds a new entry point for organic search discovery.</li>
+              <li><strong>Owned media channel</strong> — your blog, YouTube channel, and podcast are assets you control entirely.</li>
+            </ul>
+          </div>
+          <div class="ani d4" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="callout">
+              <div class="callout-lbl">Content Marketing Institute defines it as:</div>
+              <div class="callout-body">"A strategic marketing approach focused on creating and distributing <strong>valuable, relevant, and consistent content</strong> to attract and retain a clearly defined audience — and, ultimately, to drive profitable customer action."</div>
+            </div>
+            <div class="mono-box">
+<span class="c">// The Content Marketing Equation</span>
+<span class="k">value</span> = audience_need
+       + brand_expertise
+       + consistent_delivery;
+
+<span class="k">if</span> (value > <span class="s">"sales pitch"</span>) {
+  <span class="v">trust++</span>;
+  <span class="v">authority++</span>;
+  <span class="v">conversions++</span>;
+}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 3: Benefits ══ -->
+  <div class="slide" data-label="01b · Benefits">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Benefits of Content Marketing</div>
+          <div class="split-title ani d2">Why Every Brand Needs<br>a Content Strategy</div>
+        </div>
+        <div class="metric-row ani d3">
+          <div class="metric-card">
+            <span class="metric-icon">🔍</span>
+            <div class="metric-name">Organic Discovery</div>
+            <div class="metric-desc">Content drives 55% more website visitors for companies that blog consistently vs. those that don't.</div>
+            <div class="metric-val">55%↑</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-icon">💰</span>
+            <div class="metric-name">Cost Efficiency</div>
+            <div class="metric-desc">Content marketing costs 62% less than outbound marketing while generating 3× more leads per dollar spent.</div>
+            <div class="metric-val">62%↓</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-icon">🤝</span>
+            <div class="metric-name">Customer Trust</div>
+            <div class="metric-desc">Brands publishing educational content see 6× higher conversion rates from content-driven leads.</div>
+            <div class="metric-val">6×</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-icon">🔗</span>
+            <div class="metric-name">Backlink Equity</div>
+            <div class="metric-desc">Original research and data-led content earns 97% more backlinks, boosting domain authority over time.</div>
+            <div class="metric-val">97%↑</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-icon">🎯</span>
+            <div class="metric-name">Lead Nurturing</div>
+            <div class="metric-desc">Targeted content sequences move prospects through the funnel 23% faster than cold outreach methods.</div>
+            <div class="metric-val">23%↑</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-icon">♻️</span>
+            <div class="metric-name">Compounding Returns</div>
+            <div class="metric-desc">A single evergreen post can generate traffic and leads for years — the ROI grows with every passing month.</div>
+            <div class="metric-val">∞</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 4: Content Types ══ -->
+  <div class="slide" data-label="01c · Content Types">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Types of Content</div>
+          <div class="split-title ani d2">Eight Formats That<br>Move Audiences</div>
+        </div>
+        <div class="ct-grid ani d3">
+          <div class="ct-item">
+            <span class="ct-emoji">✍️</span>
+            <div class="ct-name">Blog Posts</div>
+            <div class="ct-meta">SEO-driven long-form articles that establish authority and capture search intent.</div>
+            <span class="ct-badge">Evergreen</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">🎬</span>
+            <div class="ct-name">Video</div>
+            <div class="ct-meta">Tutorials, explainers, and brand stories — the highest engagement format on the web.</div>
+            <span class="ct-badge">High Engagement</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">📊</span>
+            <div class="ct-name">Infographics</div>
+            <div class="ct-meta">Data visualization that simplifies complex ideas into shareable, scannable visuals.</div>
+            <span class="ct-badge">Viral-friendly</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">🎙️</span>
+            <div class="ct-name">Podcasts</div>
+            <div class="ct-meta">Audio-first content building intimate communities around niche expertise and conversation.</div>
+            <span class="ct-badge">Loyal Audience</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">📧</span>
+            <div class="ct-name">Newsletters</div>
+            <div class="ct-meta">Direct-to-inbox content that owns the relationship with your most engaged subscribers.</div>
+            <span class="ct-badge">Owned Channel</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">📑</span>
+            <div class="ct-name">Case Studies</div>
+            <div class="ct-meta">Proof-driven narratives showing real results. The most persuasive bottom-of-funnel format.</div>
+            <span class="ct-badge">Conversion</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">📚</span>
+            <div class="ct-name">Ebooks & Guides</div>
+            <div class="ct-meta">Gated deep-dives that generate leads while cementing expertise on complex topics.</div>
+            <span class="ct-badge">Lead Gen</span>
+          </div>
+          <div class="ct-item">
+            <span class="ct-emoji">🖼️</span>
+            <div class="ct-name">Social Content</div>
+            <div class="ct-meta">Platform-native short-form posts, carousels, and stories for discovery and engagement.</div>
+            <span class="ct-badge">Top of Funnel</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 5: Section 2 Intro ══ -->
+  <div class="slide" data-label="02 · Content Creation">
+    <div class="s-inner sec-intro-layout">
+      <div class="sec-intro-inner">
+        <div class="sec-eyebrow ani"><div class="sec-eyebrow-line"></div>Topic Two</div>
+        <h2 class="sec-big-title ani d2">Content<br><span>Creation</span></h2>
+        <div class="sec-rule ani d2"></div>
+        <div class="sec-cards three ani d3">
+          <div class="s-card">
+            <span class="s-card-icon">💡</span>
+            <div class="s-card-lbl">Ideation</div>
+            <div class="s-card-title">Finding Topics & Ideas</div>
+            <p class="s-card-body">Discover what your audience is searching for, what competitors overlook, and where your expertise uniquely adds value.</p>
+            <span class="s-card-tag">Research</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">✨</span>
+            <div class="s-card-lbl">Quality</div>
+            <div class="s-card-title">High-Quality Content</div>
+            <p class="s-card-body">Every piece should be the best answer to a specific question — original, well-researched, expertly written, and beautifully presented.</p>
+            <span class="s-card-tag">Excellence</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">♻️</span>
+            <div class="s-card-lbl">Efficiency</div>
+            <div class="s-card-title">Repurposing Content</div>
+            <p class="s-card-body">Transform a single piece of pillar content into 10+ formats across platforms — maximizing reach without multiplying workload.</p>
+            <span class="s-card-tag">Leverage</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 6: Topic Research ══ -->
+  <div class="slide" data-label="02a · Topic Ideas">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Identifying Content Topics</div>
+          <div class="split-title ani d2">Where Great Content<br>Ideas Come From</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3">
+            <div class="timeline">
+              <div class="tl-item">
+                <div class="tl-dot">1</div>
+                <div class="tl-body">
+                  <div class="tl-title">Keyword & Search Intent Research</div>
+                  <div class="tl-desc">Use tools like Ahrefs, SEMrush, or Google Search Console to find what your audience actively searches for.</div>
+                </div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-dot">2</div>
+                <div class="tl-body">
+                  <div class="tl-title">Audience Questions & Pain Points</div>
+                  <div class="tl-desc">Mine Reddit, Quora, social comments, support tickets, and sales calls for real questions your audience asks.</div>
+                </div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-dot">3</div>
+                <div class="tl-body">
+                  <div class="tl-title">Competitor Content Gaps</div>
+                  <div class="tl-desc">Analyze what competitors rank for and find adjacent topics they haven't covered — your untapped opportunity.</div>
+                </div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-dot">4</div>
+                <div class="tl-body">
+                  <div class="tl-title">Trend Monitoring</div>
+                  <div class="tl-desc">Google Trends, Twitter/X topics, and industry newsletters reveal timely angles that capture surging interest.</div>
+                </div>
+              </div>
+              <div class="tl-item">
+                <div class="tl-dot">5</div>
+                <div class="tl-body">
+                  <div class="tl-title">Internal Data & Expertise</div>
+                  <div class="tl-desc">Proprietary research, unique data, and internal subject matter experts create content no competitor can replicate.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ani d4" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="callout">
+              <div class="callout-lbl">The Content-Market Fit Test</div>
+              <div class="callout-body">Ask three questions before creating anything:<br><br><strong>1.</strong> Does my audience actually search for this?<br><strong>2.</strong> Can I add unique value beyond existing content?<br><strong>3.</strong> Does this serve a business goal (awareness, leads, retention)?<br><br>If all three are yes → <strong>build it.</strong></div>
+            </div>
+            <div class="s-card" style="margin:0">
+              <div class="s-card-lbl">Topic Scoring Framework</div>
+              <ul class="f-list" style="margin-top:8px">
+                <li><strong>Search volume</strong> — is there monthly demand?</li>
+                <li><strong>Keyword difficulty</strong> — can we realistically rank?</li>
+                <li><strong>Business relevance</strong> — does it reach buyers?</li>
+                <li><strong>Unique angle</strong> — do we have something original to say?</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 7: High Quality Content ══ -->
+  <div class="slide" data-label="02b · Quality">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Creating High-Quality Content</div>
+          <div class="split-title ani d2">The Anatomy of<br>Content That Performs</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3">
+            <ul class="f-list">
+              <li><strong>Original research & data</strong> — primary sources, surveys, and experiments that can't be found elsewhere.</li>
+              <li><strong>Expert quotes & validation</strong> — interviews and citations from recognized authorities increase credibility and sharing.</li>
+              <li><strong>Comprehensive depth</strong> — cover the topic fully. Thin content loses to thorough content every time in search.</li>
+              <li><strong>Strong opening hook</strong> — the first 3 sentences determine whether anyone reads the rest. Lead with value or curiosity.</li>
+              <li><strong>Visual hierarchy</strong> — headers, bullet points, callouts, and images that reward scanning before deep reading.</li>
+              <li><strong>Clear, singular CTA</strong> — every piece needs an obvious next action that advances the reader's journey.</li>
+            </ul>
+          </div>
+          <div class="ani d4" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="mono-box">
+<span class="c">// Content Quality Checklist</span>
+✅ <span class="s">Original angle</span> (not just a rehash)
+✅ <span class="s">Keyword research</span> completed
+✅ <span class="s">Expert input</span> included
+✅ <span class="s">Visuals & media</span> added
+✅ <span class="s">Internal links</span> (3–5 minimum)
+✅ <span class="s">Meta title + description</span> optimized
+✅ <span class="s">Mobile preview</span> checked
+✅ <span class="s">CTA is clear</span> and above fold
+✅ <span class="s">Proofread</span> + grammar pass
+✅ <span class="k">Publish</span> → <span class="v">promote</span> → <span class="v">measure</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 8: Repurposing ══ -->
+  <div class="slide" data-label="02c · Repurposing">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Repurposing Content</div>
+          <div class="split-title ani d2">One Idea, Ten Formats,<br>Maximum Reach</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3">
+            <div class="callout" style="margin-bottom:16px">
+              <div class="callout-lbl">The Pillar Content Model</div>
+              <div class="callout-body">Start with one <strong>long-form pillar piece</strong> (a comprehensive guide or original research report) — then systematically break it into smaller format-specific derivatives for every platform.</div>
+            </div>
+            <ul class="f-list">
+              <li><strong>Long-form blog → 5 short posts</strong> — each section becomes a standalone article with its own SEO value.</li>
+              <li><strong>Blog → Video script</strong> — adapt written content into a YouTube or TikTok explainer.</li>
+              <li><strong>Data points → Infographic</strong> — visualize key stats for Pinterest and LinkedIn shares.</li>
+              <li><strong>Article → Podcast episode</strong> — narrate and expand with guest perspectives.</li>
+            </ul>
+          </div>
+          <div class="ani d4">
+            <div class="s-card" style="margin:0;height:100%;">
+              <div class="s-card-lbl">Repurposing Matrix</div>
+              <div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                  <span style="font-size:18px">📄</span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;color:var(--ink);margin-bottom:2px">Pillar Article</div>
+                    <div style="color:var(--muted);font-size:12px;font-weight:300">Breaks into → 5 blog posts, 1 ebook, 10 social posts</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                  <span style="font-size:18px">🎬</span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;color:var(--ink);margin-bottom:2px">Long-form Video</div>
+                    <div style="color:var(--muted);font-size:12px;font-weight:300">Breaks into → 5 clips, 1 podcast, 3 GIFs, blog post</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                  <span style="font-size:18px">🎙️</span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;color:var(--ink);margin-bottom:2px">Podcast Episode</div>
+                    <div style="color:var(--muted);font-size:12px;font-weight:300">Breaks into → transcript blog, audiograms, quote cards</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                  <span style="font-size:18px">📊</span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;color:var(--ink);margin-bottom:2px">Original Research</div>
+                    <div style="color:var(--muted);font-size:12px;font-weight:300">Breaks into → infographic, slides, press release, webinar</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+                  <span style="font-size:18px">📧</span>
+                  <div style="flex:1">
+                    <div style="font-weight:600;color:var(--ink);margin-bottom:2px">Email Newsletter</div>
+                    <div style="color:var(--muted);font-size:12px;font-weight:300">Breaks into → blog summary, social teasers, lead magnet</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 9: Section 3 Intro ══ -->
+  <div class="slide" data-label="03 · Distribution">
+    <div class="s-inner sec-intro-layout">
+      <div class="sec-intro-inner">
+        <div class="sec-eyebrow ani"><div class="sec-eyebrow-line"></div>Topic Three</div>
+        <h2 class="sec-big-title ani d2">Content<br><span>Distribution</span></h2>
+        <div class="sec-rule ani d2"></div>
+        <div class="sec-cards three ani d3">
+          <div class="s-card">
+            <span class="s-card-icon">🗺️</span>
+            <div class="s-card-lbl">Strategy</div>
+            <div class="s-card-title">Distribution Strategies</div>
+            <p class="s-card-body">Owned, earned, and paid channels each play a role. A balanced mix ensures broad reach and sustainable audience growth.</p>
+            <span class="s-card-tag">Multi-Channel</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">📱</span>
+            <div class="s-card-lbl">Social</div>
+            <div class="s-card-title">Social Media Promotion</div>
+            <p class="s-card-body">Platform-native formats, strategic timing, and community engagement amplify content reach beyond your existing audience.</p>
+            <span class="s-card-tag">Amplification</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">📧</span>
+            <div class="s-card-lbl">Email</div>
+            <div class="s-card-title">Email Distribution</div>
+            <p class="s-card-body">Your subscriber list is your highest-converting distribution channel. Use it to surface new content to your most engaged audience.</p>
+            <span class="s-card-tag">Owned Media</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 10: Distribution Strategies ══ -->
+  <div class="slide" data-label="03a · Strategies">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Distribution Strategies</div>
+          <div class="split-title ani d2">The Three-Channel<br>Distribution Framework</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3" style="display:flex;flex-direction:column;gap:12px;">
+            <div class="s-card" style="margin:0;border-left:3px solid var(--green);">
+              <div class="s-card-lbl" style="color:var(--green)">Owned Media</div>
+              <div class="s-card-title">You Control It</div>
+              <p class="s-card-body">Your website, blog, email list, podcast feed, and YouTube channel. Invest here first — zero distribution cost, full control, compounding returns.</p>
+            </div>
+            <div class="s-card" style="margin:0;border-left:3px solid var(--rust);">
+              <div class="s-card-lbl" style="color:var(--rust)">Earned Media</div>
+              <div class="s-card-title">Others Share It</div>
+              <p class="s-card-body">PR coverage, organic social shares, backlinks, influencer mentions. Earned media is the most credible but least predictable channel.</p>
+            </div>
+            <div class="s-card" style="margin:0;border-left:3px solid var(--gold);">
+              <div class="s-card-lbl" style="color:var(--gold)">Paid Media</div>
+              <div class="s-card-title">You Buy Reach</div>
+              <p class="s-card-body">Sponsored social, content amplification platforms (Outbrain, Taboola), and paid search. Use to accelerate owned media's reach on key pieces.</p>
+            </div>
+          </div>
+          <div class="ani d4">
+            <div class="callout" style="margin-bottom:14px;">
+              <div class="callout-lbl">Distribution Best Practices</div>
+              <div class="callout-body">
+                <strong>Publish, then promote.</strong> Most brands spend 80% of time creating and 20% distributing. Flip this ratio — spend equal or more effort on promotion. A great piece seen by no one drives zero results.
+              </div>
+            </div>
+            <ul class="f-list">
+              <li><strong>Community distribution</strong> — share in relevant Slack groups, forums, LinkedIn groups, and subreddits with authentic participation.</li>
+              <li><strong>Content syndication</strong> — republish on Medium, LinkedIn Articles, and industry publications for extended reach.</li>
+              <li><strong>Outreach & link building</strong> — notify people mentioned in your content; they often share or link back.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 11: Social Media ══ -->
+  <div class="slide" data-label="03b · Social Media">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Social Media for Content Promotion</div>
+          <div class="split-title ani d2">Platform-Native<br>Content That Gets Shared</div>
+        </div>
+        <div class="platform-row ani d3">
+          <div class="platform-card">
+            <span style="font-size:22px">💼</span>
+            <div class="platform-name">LinkedIn</div>
+            <div class="platform-desc">B2B content, thought leadership, long-form posts, carousels, and document posts. Organic reach still strong.</div>
+            <span class="platform-tag">B2B / Professional</span>
+          </div>
+          <div class="platform-card">
+            <span style="font-size:22px">📸</span>
+            <div class="platform-name">Instagram</div>
+            <div class="platform-desc">Visual content, infographic carousels, Reels for video repurposing, and Stories for behind-the-scenes process content.</div>
+            <span class="platform-tag">Visual / B2C</span>
+          </div>
+          <div class="platform-card">
+            <span style="font-size:22px">🎵</span>
+            <div class="platform-name">TikTok / Reels</div>
+            <div class="platform-desc">Short-form video explainers, tips, and storytelling. The highest organic reach platform for new audience discovery.</div>
+            <span class="platform-tag">Video / Discovery</span>
+          </div>
+          <div class="platform-card">
+            <span style="font-size:22px">🐦</span>
+            <div class="platform-name">X / Twitter</div>
+            <div class="platform-desc">Real-time commentary, threads that expand on blog ideas, and direct engagement with your industry's conversation.</div>
+            <span class="platform-tag">Thought Leadership</span>
+          </div>
+          <div class="platform-card">
+            <span style="font-size:22px">📌</span>
+            <div class="platform-name">Pinterest</div>
+            <div class="platform-desc">Evergreen infographics, how-to content, and visual guides. Strong SEO value and long content lifespan.</div>
+            <span class="platform-tag">Visual Search</span>
+          </div>
+          <div class="platform-card">
+            <span style="font-size:22px">▶️</span>
+            <div class="platform-name">YouTube</div>
+            <div class="platform-desc">Long-form tutorials, product demos, and educational content. The world's second-largest search engine.</div>
+            <span class="platform-tag">Video SEO</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 12: Section 4 Intro ══ -->
+  <div class="slide" data-label="04 · Strategy">
+    <div class="s-inner sec-intro-layout">
+      <div class="sec-intro-inner">
+        <div class="sec-eyebrow ani"><div class="sec-eyebrow-line"></div>Topic Four</div>
+        <h2 class="sec-big-title ani d2">Content Marketing<br><span>Strategy</span></h2>
+        <div class="sec-rule ani d2"></div>
+        <div class="sec-cards three ani d3">
+          <div class="s-card">
+            <span class="s-card-icon">📅</span>
+            <div class="s-card-lbl">Planning</div>
+            <div class="s-card-title">Content Calendar</div>
+            <p class="s-card-body">A strategic publishing schedule that aligns content themes with business goals, seasonal trends, and audience behavior patterns.</p>
+            <span class="s-card-tag">Organization</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">📊</span>
+            <div class="s-card-lbl">Analytics</div>
+            <div class="s-card-title">Measuring Performance</div>
+            <p class="s-card-body">Track the metrics that actually matter — traffic, engagement, leads, and revenue attribution — not just vanity numbers.</p>
+            <span class="s-card-tag">Data-Driven</span>
+          </div>
+          <div class="s-card">
+            <span class="s-card-icon">🔄</span>
+            <div class="s-card-lbl">Iteration</div>
+            <div class="s-card-title">Adjusting Strategy</div>
+            <p class="s-card-body">Content strategy is a living system — continuous testing, learning, and optimization compounds performance over time.</p>
+            <span class="s-card-tag">Agile</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 13: Content Calendar ══ -->
+  <div class="slide" data-label="04a · Calendar">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Developing a Content Calendar</div>
+          <div class="split-title ani d2">Your Publishing<br>Command Centre</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3" style="display:flex;flex-direction:column;gap:16px;">
+            <div class="s-card" style="margin:0;">
+              <div class="s-card-lbl">Sample Monthly Calendar</div>
+              <div style="margin-top:14px;">
+                <div class="cal-grid">
+                  <div class="cal-hdr">Mo</div><div class="cal-hdr">Tu</div><div class="cal-hdr">We</div><div class="cal-hdr">Th</div><div class="cal-hdr">Fr</div><div class="cal-hdr">Sa</div><div class="cal-hdr">Su</div>
+                  <div class="cal-day empty"></div><div class="cal-day empty"></div><div class="cal-day">1</div>
+                  <div class="cal-day has-post">2<div class="cal-dot cd-green"></div></div>
+                  <div class="cal-day">3</div><div class="cal-day">4</div><div class="cal-day">5</div>
+                  <div class="cal-day">6</div>
+                  <div class="cal-day has-email">7<div class="cal-dot cd-gold"></div></div>
+                  <div class="cal-day">8</div>
+                  <div class="cal-day has-video">9<div class="cal-dot cd-rust"></div></div>
+                  <div class="cal-day has-post">10<div class="cal-dot cd-green"></div></div>
+                  <div class="cal-day">11</div><div class="cal-day">12</div>
+                  <div class="cal-day">13</div><div class="cal-day has-post">14<div class="cal-dot cd-green"></div></div>
+                  <div class="cal-day has-email">15<div class="cal-dot cd-gold"></div></div>
+                  <div class="cal-day">16</div>
+                  <div class="cal-day has-video">17<div class="cal-dot cd-rust"></div></div>
+                  <div class="cal-day">18</div><div class="cal-day">19</div>
+                  <div class="cal-day">20</div>
+                  <div class="cal-day has-post">21<div class="cal-dot cd-green"></div></div>
+                  <div class="cal-day">22</div>
+                  <div class="cal-day has-email">23<div class="cal-dot cd-gold"></div></div>
+                  <div class="cal-day has-post">24<div class="cal-dot cd-green"></div></div>
+                  <div class="cal-day">25</div><div class="cal-day">26</div>
+                  <div class="cal-day">27</div>
+                  <div class="cal-day has-video">28<div class="cal-dot cd-rust"></div></div>
+                  <div class="cal-day">29</div>
+                  <div class="cal-day has-post">30<div class="cal-dot cd-green"></div></div>
+                  <div class="cal-day has-email">31<div class="cal-dot cd-gold"></div></div>
+                </div>
+                <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:var(--muted);font-family:'Courier Prime',monospace;">
+                  <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;"></span>Blog Post</span>
+                  <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--rust);display:inline-block;"></span>Video</span>
+                  <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:var(--gold);display:inline-block;"></span>Newsletter</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ani d4" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="callout">
+              <div class="callout-lbl">Calendar Building Principles</div>
+              <div class="callout-body"><strong>Themes over topics.</strong> Organize monthly themes around business priorities, then fill in specific topics within each theme. This creates strategic coherence across all channels.</div>
+            </div>
+            <ul class="f-list">
+              <li><strong>Publishing cadence first</strong> — commit to a realistic frequency you can sustain, then scale up.</li>
+              <li><strong>Lead time buffering</strong> — keep 2–3 weeks of content in the pipeline at all times.</li>
+              <li><strong>Seasonal alignment</strong> — map content to industry events, product launches, and search seasonality.</li>
+              <li><strong>Cross-channel coordination</strong> — align blog, social, email, and video around the same weekly theme.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 14: Measuring + Adjusting ══ -->
+  <div class="slide" data-label="04bc · Analytics">
+    <div class="s-inner split-layout">
+      <div class="split-inner">
+        <div class="split-header">
+          <div class="split-eyebrow ani">Measuring & Adjusting Strategy</div>
+          <div class="split-title ani d2">From Data to Decisions:<br>The Optimization Loop</div>
+        </div>
+        <div class="split-cols">
+          <div class="ani d3">
+            <div class="s-card-lbl" style="margin-bottom:12px;">Key Performance Metrics</div>
+            <div style="display:flex;flex-direction:column;gap:10px;">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+                <span style="font-size:20px">👁️</span>
+                <div>
+                  <div style="font-size:14px;font-weight:600;color:var(--ink)">Awareness Metrics</div>
+                  <div style="font-size:12px;color:var(--muted)">Organic traffic, impressions, brand search volume, social reach</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+                <span style="font-size:20px">💬</span>
+                <div>
+                  <div style="font-size:14px;font-weight:600;color:var(--ink)">Engagement Metrics</div>
+                  <div style="font-size:12px;color:var(--muted)">Time on page, scroll depth, comments, shares, email open rates</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+                <span style="font-size:20px">🎯</span>
+                <div>
+                  <div style="font-size:14px;font-weight:600;color:var(--ink)">Conversion Metrics</div>
+                  <div style="font-size:12px;color:var(--muted)">Lead form fills, email subscribers, demo requests, content downloads</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--white);border:1px solid var(--border);border-radius:8px;">
+                <span style="font-size:20px">💵</span>
+                <div>
+                  <div style="font-size:14px;font-weight:600;color:var(--ink)">Revenue Metrics</div>
+                  <div style="font-size:12px;color:var(--muted)">Content-influenced pipeline, customer acquisition cost, content ROI</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ani d4" style="display:flex;flex-direction:column;gap:14px;">
+            <div class="callout">
+              <div class="callout-lbl">The Optimization Loop</div>
+              <div class="callout-body">
+                <strong>Publish → Measure → Learn → Improve.</strong> Run this cycle monthly. Identify your top 20% performing content and double down on those topics, formats, and distribution channels. Kill what doesn't move metrics.
+              </div>
+            </div>
+            <div class="mono-box">
+<span class="c">// Monthly Review Protocol</span>
+<span class="k">const</span> review = {
+  traffic: <span class="s">compareVsLastMonth()</span>,
+  topContent: <span class="s">getTop5Pieces()</span>,
+  worstContent: <span class="s">getBottom5Pieces()</span>,
+  channels: <span class="s">rankByConversion()</span>
+};
+
+<span class="c">// Actions</span>
+<span class="k">if</span> (piece.convRate < threshold) {
+  <span class="v">updateCTA()</span> || <span class="v">archive()</span>;
+}
+<span class="k">if</span> (piece.traffic > avg * <span class="v">2</span>) {
+  <span class="v">createSeries()</span>; <span class="c">// double down</span>
+}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 15: OUTRO ══ -->
+  <div class="slide" data-label="Summary">
+    <div class="s-inner outro-layout">
+      <div class="outro-inner">
+        <div class="outro-eyebrow ani">End of Presentation</div>
+        <h2 class="outro-h ani d2">
+          Content is
+          <em>the Strategy.</em>
+        </h2>
+        <p class="outro-sub ani d3">From understanding your audience to building a data-driven calendar — great content marketing is a system, not a tactic. Start with value, distribute widely, measure everything, and iterate relentlessly.</p>
+        <div class="outro-pills ani d4">
+          <span class="o-pill">Introduction</span>
+          <span class="o-pill">Creation</span>
+          <span class="o-pill">Distribution</span>
+          <span class="o-pill">Strategy</span>
+        </div>
+        <div style="font-family:'Courier Prime',monospace;font-size:12px;color:rgba(255,255,255,.4);margin-top:8px;" class="ani d5">
+          Press ← to revisit any section
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<div id="progress"></div>
+<div id="dots"></div>
+<div id="nav">
+  <button class="nav-btn" id="prev-btn" onclick="go(-1)">←</button>
+  <span id="nav-num">1 / 16</span>
+  <button class="nav-btn" id="next-btn" onclick="go(1)">→</button>
+</div>
+
+<script>
+/* ── CURSOR ── */
+const dot = document.getElementById('cur-dot');
+const ring = document.getElementById('cur-ring');
+document.addEventListener('mousemove', e => {
+  dot.style.left  = ring.style.left  = e.clientX + 'px';
+  dot.style.top   = ring.style.top   = e.clientY + 'px';
+});
+document.querySelectorAll('button,.s-card,.ct-item,.platform-card,.metric-card,.toc-item,.cal-day,.o-pill').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    dot.style.width = dot.style.height = '16px';
+    ring.style.width = ring.style.height = '48px';
+    dot.style.background = 'var(--rust)';
+  });
+  el.addEventListener('mouseleave', () => {
+    dot.style.width = dot.style.height = '8px';
+    ring.style.width = ring.style.height = '32px';
+    dot.style.background = 'var(--green)';
+  });
+});
+
+/* ── SLIDES ── */
+const slides = [...document.querySelectorAll('.slide')];
+const total  = slides.length;
+let cur = 0, busy = false;
+
+/* Build dots */
+const dotsEl = document.getElementById('dots');
+slides.forEach((_,i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' on':'');
+  d.addEventListener('click', () => goTo(i));
+  dotsEl.appendChild(d);
+});
+
+function reAnimate(slide) {
+  slide.querySelectorAll('.ani').forEach(el => {
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = '';
+  });
+}
+
+function updateUI() {
+  const pct = ((cur+1)/total)*100;
+  document.getElementById('progress').style.width = pct + '%';
+  document.getElementById('nav-num').textContent = `${cur+1} / ${total}`;
+  document.getElementById('prev-btn').disabled = cur === 0;
+  document.getElementById('next-btn').disabled = cur === total-1;
+  document.getElementById('slide-label').textContent = slides[cur].dataset.label || 'Content Marketing';
+  document.querySelectorAll('.dot').forEach((d,i) => d.classList.toggle('on', i===cur));
+}
+
+function goTo(idx) {
+  if (busy || idx===cur || idx<0 || idx>=total) return;
+  busy = true;
+  const prev = cur; cur = idx;
+  slides[prev].classList.remove('active');
+  slides[prev].classList.add('exit');
+  reAnimate(slides[cur]);
+  slides[cur].classList.add('active');
+  updateUI();
+  setTimeout(() => { slides[prev].classList.remove('exit'); busy = false; }, 600);
+}
+
+function go(d) { goTo(cur+d); }
+
+document.addEventListener('keydown', e => {
+  if (e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' ') { e.preventDefault(); go(1); }
+  if (e.key==='ArrowLeft'||e.key==='ArrowUp') { e.preventDefault(); go(-1); }
+  if (e.key==='f'||e.key==='F') {
+    document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  }
+});
+
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.touches[0].clientX; });
+document.addEventListener('touchend',   e => {
+  const dx = tx - e.changedTouches[0].clientX;
+  if (Math.abs(dx) > 45) go(dx > 0 ? 1 : -1);
+});
+
+updateUI();
+</script>
+</body>
+</html>
